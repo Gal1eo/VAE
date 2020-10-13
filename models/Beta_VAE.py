@@ -71,7 +71,7 @@ class BetaVAE(BaseVAE):
             )
 
         self.decoder = nn.Sequential(*modules)
-
+        """
         self.final_layer = nn.Sequential(
                             nn.ConvTranspose2d(hidden_dims[-1],
                                                hidden_dims[-1],
@@ -84,6 +84,9 @@ class BetaVAE(BaseVAE):
                             nn.Conv2d(hidden_dims[-1], out_channels=3,
                                       kernel_size=3, padding=1),
                             nn.Tanh())
+        """
+        self.final_layer_mu = nn.Linear(hidden_dims[-1]*4, )
+        self.final_layer_var = nn.Linear(hidden_dims[-1]*4, )
 
     def encode(self, input: Tensor) -> MultivariateNormal:
         """
@@ -104,13 +107,19 @@ class BetaVAE(BaseVAE):
         return distribution
 
     def decode(self, z: Tensor) -> Tensor:
+        """
+        :param z: Samples from the distribution of q_phi
+        :return: The distribution of MultivariateNormal or Bernoulli
+        """
+
         result = self.decoder_input(z)
         result = result.view(-1, 512, 2, 2)
         result = self.decoder(result)
+        result = torch.flatten(result, start_dim=1)
         # result = self.final_layer(result)
-        mu     =
-        var    =
-        distribution = MultivariateNormal(mu,torch.diag(var))
+        mu = self.final_layer_mu()
+        var = self.final_layer_var()
+        distribution = MultivariateNormal(mu, torch.diag(var))
 
         return distribution
 
@@ -162,21 +171,22 @@ class BetaVAE(BaseVAE):
     '''
 
     def loss_function(self, input: Tensor,
-                      prior: MultivariateNormal,
-                      posterior: MultivariateNormal, **kwargs) -> Tensor:
+                      posterior_x_z: MultivariateNormal,
+                      posterior_z_x: MultivariateNormal, **kwargs) -> Tensor:
 
         """
         :param input: Training data
-        :param prior: The true distribution of laten variable
-        :param posterior: The conditional distribution of decoder
+        :param prior: The true distribution of laten variable z
+        :param posterior_x_z: The conditional distribution of encoder
+        :param posterior_z_x: The conditional distribution of decoder
         :param kwargs:
         :return: KL divergence minus likehood
         """
-        KLD_loss = self.KL_Guassian(prior, posterior)
-        likelihood = posterior.log_prob(input)
+        prior = MultivariateNormal(torch.zeros(self.latent_dim), torch.eye(self.latent_dim))
+        KLD_loss = self.KL_Guassian(prior, posterior_x_z)
+        likelihood = posterior_z_x.log_prob(input)
 
         return KLD_loss - likelihood
-
 
     def KL_Guassian(self,
                     prior: MultivariateNormal,
@@ -189,9 +199,8 @@ class BetaVAE(BaseVAE):
         :param kwargs:
         :return: The KL divergence of D(prior,posterior)
         """
-        loss = self.compute_Guassian(prior) - sefl.compute_Guassian(posterior)
+        loss = self.compute_Guassian(prior) - self.compute_Guassian(posterior)
         return loss
-
 
     def compute_Guassian(self,
                          prob: MultivariateNormal) -> Tensor:
