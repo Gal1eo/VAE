@@ -1,6 +1,7 @@
 from .types_ import *
 from torch import nn
 from abc import abstractmethod
+from torch.distributions.multivariate_normal import MultivariateNormal
 
 
 class BaseVAE(nn.Module):
@@ -32,17 +33,8 @@ class BaseVAE(nn.Module):
         pass
 
     @abstractmethod
-    def compute_Guassian(self,
-                         prob: MultivariateNormal) -> Tensor:
-        pass
-
-    @abstractmethod
     def KL_Guassian(self,
                     prior: MultivariateNormal,
                     posterior: MultivariateNormal, **kwargs) -> Tensor:
         pass
-
-    @abstractmethod
-
-
 

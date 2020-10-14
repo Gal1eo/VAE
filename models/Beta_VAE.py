@@ -1,5 +1,5 @@
 import torch
-from models import BaseVAE
+from models.base import BaseVAE
 from torch import nn
 from torch.nn import functional as F
 from .types_ import *
@@ -12,14 +12,16 @@ class BetaVAE(BaseVAE):
     num_iter = 0 # Global static variable to keep track of iterations
 
     def __init__(self,
-                 in_channels: int,
-                 latent_dim: int,
+                 in_channels: int = 1,
+                 latent_dim: int = 16,
                  hidden_dims: List = None,
                  beta: int = 4,
                  gamma: float = 1000.,
                  max_capacity: int = 25,
                  capacity_max_iter: int = 1e5,
                  loss_type: str = 'B',
+                 h_in: int = 28,
+                 w_in: int = 28,
                  **kwargs) -> None:
         super(BetaVAE, self).__init__()
 
@@ -27,8 +29,12 @@ class BetaVAE(BaseVAE):
         self.beta = beta
         self.gamma = gamma
         self.loss_type = loss_type
+        self.h_in = h_in
+        self.w_in = w_in
         self.C_max = torch.Tensor([max_capacity])
         self.C_stop_iter = capacity_max_iter
+
+
 
         modules = []
         if hidden_dims is None:
@@ -46,14 +52,15 @@ class BetaVAE(BaseVAE):
             in_channels = h_dim
 
         self.encoder = nn.Sequential(*modules)
-        self.fc_mu = nn.Linear(hidden_dims[-1]*4, latent_dim)
-        self.fc_var = nn.Linear(hidden_dims[-1]*4, latent_dim)
+        # flatten will reshape the size of input, therefore the neurons will change
+        self.fc_mu = nn.Linear(hidden_dims[-1], latent_dim)
+        self.fc_var = nn.Linear(hidden_dims[-1], latent_dim)
 
 
         # Build Decoder
         modules = []
 
-        self.decoder_input = nn.Linear(latent_dim, hidden_dims[-1] * 4)
+        self.decoder_input = nn.Linear(latent_dim, hidden_dims[-1])
 
         hidden_dims.reverse()
 
@@ -67,7 +74,7 @@ class BetaVAE(BaseVAE):
                                        padding=1,
                                        output_padding=1),
                     nn.BatchNorm2d(hidden_dims[i + 1]),
-                    nn.LeakyReLU())
+                    nn.ReLU())
             )
 
         self.decoder = nn.Sequential(*modules)
@@ -85,8 +92,8 @@ class BetaVAE(BaseVAE):
                                       kernel_size=3, padding=1),
                             nn.Tanh())
         """
-        self.final_layer_mu = nn.Linear(hidden_dims[-1]*4, )
-        self.final_layer_var = nn.Linear(hidden_dims[-1]*4, )
+        self.final_layer_mu = nn.Linear(hidden_dims[-1]*16*16, 784)
+        self.final_layer_var = nn.Linear(hidden_dims[-1]*16*16, 784)
 
     def encode(self, input: Tensor) -> MultivariateNormal:
         """
@@ -101,9 +108,12 @@ class BetaVAE(BaseVAE):
         # Split the result into mu and var components
         # of the latent Gaussian distribution
         mu = self.fc_mu(result)
-        var = self.fc_var(result)
-
-        distribution = MultivariateNormal(mu, torch.diag(var))
+        logvar = self.fc_var(result)
+        mu = mu.flatten()
+        var = logvar.flatten()
+        var = var.exp()
+        var = torch.diag(var)
+        distribution = MultivariateNormal(mu, var)
         return distribution
 
     def decode(self, z: Tensor) -> Tensor:
@@ -113,13 +123,17 @@ class BetaVAE(BaseVAE):
         """
 
         result = self.decoder_input(z)
-        result = result.view(-1, 512, 2, 2)
+        result = result.view(-1, 512, 1, 1)
         result = self.decoder(result)
         result = torch.flatten(result, start_dim=1)
         # result = self.final_layer(result)
-        mu = self.final_layer_mu()
-        var = self.final_layer_var()
-        distribution = MultivariateNormal(mu, torch.diag(var))
+        mu = self.final_layer_mu(result)
+        mu = mu.flatten()
+        logvar = self.final_layer_var(result)
+        logvar = logvar.flatten()
+        var = logvar.exp()
+        var = torch.diag(var)
+        distribution = MultivariateNormal(mu, var)
 
         return distribution
 
@@ -137,10 +151,17 @@ class BetaVAE(BaseVAE):
         return eps * std + mu
 
     def forward(self, input: Tensor, **kwargs) -> Tensor:
+
+        assert self.h_in == input.shape[2]
+        assert self.w_in == input.shape[3]
+
         z_dist = self.encode(input)
         z = z_dist.sample()
-        x_dist = decode(z)
-        return z
+        z = z.view(input.shape[0], -1)
+        x_dist = self.decode(z)
+        loss = self.loss_function(input,z_dist,x_dist)
+
+        return z_dist, x_dist, loss
 
     '''
     def loss_function(self,
@@ -170,38 +191,46 @@ class BetaVAE(BaseVAE):
         return {'loss': loss, 'Reconstruction_Loss':recons_loss, 'KLD':kld_loss}
     '''
 
-    def loss_function(self, input: Tensor,
+    def loss_function(self, x: Tensor,
                       posterior_x_z: MultivariateNormal,
                       posterior_z_x: MultivariateNormal, **kwargs) -> Tensor:
 
         """
-        :param input: Training data
+        :param x: Training data
         :param prior: The true distribution of laten variable z
         :param posterior_x_z: The conditional distribution of encoder
         :param posterior_z_x: The conditional distribution of decoder
         :param kwargs:
         :return: KL divergence minus likehood
         """
-        prior = MultivariateNormal(torch.zeros(self.latent_dim), torch.eye(self.latent_dim))
-        KLD_loss = self.KL_Guassian(prior, posterior_x_z)
-        likelihood = posterior_z_x.log_prob(input)
+        batch_size = x.shape[0]
+        prior = MultivariateNormal(torch.zeros(self.latent_dim * batch_size)
+                                   , torch.eye(self.latent_dim * batch_size))
+        KLD_loss = self.KL_Guassian(posterior_x_z, prior)
+        x = x.flatten()
+        likelihood = posterior_z_x.log_prob(x)
+        elbo = (KLD_loss - likelihood)/batch_size
 
-        return KLD_loss - likelihood
+        return -elbo
 
     def KL_Guassian(self,
-                    prior: MultivariateNormal,
-                    posterior: MultivariateNormal, **kwargs) -> Tensor:
+                    posterior: MultivariateNormal,
+                    prior: MultivariateNormal, **kwargs) -> Tensor:
 
         """
         :param prior: The true distribution of laten variable
         :param posterior: The conditional distribution of
         laten variable given the observation of input x
         :param kwargs:
-        :return: The KL divergence of D(prior,posterior)
+        :return: The KL divergence of D(posterior, prior)
         """
-        loss = self.compute_Guassian(prior) - self.compute_Guassian(posterior)
+        loss_1 = -0.5 * torch.sum((prior.covariance_matrix.sum(1)).log() + (posterior.covariance_matrix.sum(1)).log())
+        loss_2 = -0.5 * torch.sum(torch.sum(posterior.mean ** 2) + posterior.covariance_matrix)
+        loss = loss_1 - loss_2
+
         return loss
 
+    '''
     def compute_Guassian(self,
                          prob: MultivariateNormal) -> Tensor:
 
@@ -213,7 +242,7 @@ class BetaVAE(BaseVAE):
         result = -0.5 * (torch.sum(prob.mean**2)+torch.sum(prob.covariance_matrix))
 
         return result
-
+    '''
 
     def sample(self,
                num_samples:int,
