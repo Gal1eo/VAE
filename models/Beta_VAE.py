@@ -271,7 +271,7 @@ class BetaVAE(BaseVAE):
         z = z.to(current_device)
 
         dist = self.decode(z)
-        samples = dist.sample()
+        samples = dist.probs
         samples = samples.view(num_samples, -1)
 
         return samples

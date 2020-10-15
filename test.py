@@ -7,6 +7,9 @@ import torch.nn as nn
 from torchvision import datasets
 from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
+import numpy as np
+import csv
+import matplotlib.pyplot as plt
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 epochs = 10
@@ -68,6 +71,7 @@ def fit(model, dataloader):
     return train_loss
 
 
+"""
 train_loss = []
 for epoch in range(epochs):
     print(f"Epoch {epoch+1} of {epochs}")
@@ -77,6 +81,7 @@ for epoch in range(epochs):
     # val_loss.append(val_epoch_loss)
     print(f"Train Loss: {train_epoch_loss:.4f}")
     # print(f"Val Loss: {val_epoch_loss:.4f}")
+"""
 
 
 """
@@ -88,3 +93,4 @@ x = data[1].view(-1,1,28,28)
 x = x.to(device)
 model.generate(x)
 """
+
