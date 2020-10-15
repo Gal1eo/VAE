@@ -251,7 +251,7 @@ class BetaVAE(BaseVAE):
         :return:
         """
         eps = 1e-7
-        loss = torch.matmul(x, (y.log() + eps)) + torch.matmul((1-x), ((1-y).log() + eps))
+        loss = torch.matmul(x, (y + eps).log()) + torch.matmul((1-x), ((1-y+eps).log()))
         return loss
 
     '''
