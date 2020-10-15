@@ -10,7 +10,7 @@ from torchvision.transforms import transforms
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 epochs = 10
-batch_size = 2
+batch_size = 4
 
 transform = transforms.Compose([
     transforms.ToTensor(),
@@ -61,6 +61,7 @@ def fit(model, dataloader):
         x_dist, z_dist, loss = model(data)
         # loss = BetaVAE.loss_function(x=data, posterior_x_z=x_dist, posterior_z_x=z_dist)
         running_loss += loss.item()
+        print(loss)
         loss.backward()
         optimizer.step()
     train_loss = running_loss/len(dataloader.dataset)
