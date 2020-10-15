@@ -94,3 +94,12 @@ x = x.to(device)
 model.generate(x)
 """
 
+x = model.sample(2,current_device=device)
+
+x = x.view(-1, 1, 28, 28)
+result = torch.Tensor.cpu(x).detach()
+result = result.numpy()
+img = result[0]
+img = img.reshape(28, 28)
+plt.imshow(img, cmap='gray')
+plt.show()
