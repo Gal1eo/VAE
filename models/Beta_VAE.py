@@ -93,6 +93,8 @@ class BetaVAE(BaseVAE):
                             nn.Tanh())
         """
         self.final_layer_mu = nn.Linear(hidden_dims[-1]*16*16, 784)
+        self.final_layer_be = nn.Sequential(nn.Linear(hidden_dims[-1] * 16 * 16, 784),
+                                            nn.Sigmoid())
         self.final_layer_var = nn.Linear(hidden_dims[-1]*16*16, 784)
 
     def encode(self, input: Tensor) -> MultivariateNormal:
@@ -127,13 +129,16 @@ class BetaVAE(BaseVAE):
         result = self.decoder(result)
         result = torch.flatten(result, start_dim=1)
         # result = self.final_layer(result)
-        mu = self.final_layer_mu(result)
-        mu = mu.flatten()
-        logvar = self.final_layer_var(result)
-        logvar = logvar.flatten()
-        var = logvar.exp()
-        var = torch.diag(var)
-        distribution = MultivariateNormal(mu, var)
+        # mu = self.final_layer_mu(result)
+        # mu = mu.flatten()
+        # logvar = self.final_layer_var(result)
+        # logvar = logvar.flatten()
+        # var = logvar.exp()
+        # var = torch.diag(var)
+        # distribution = MultivariateNormal(mu, var)
+        probs = self.final_layer_be(result)
+        probs = probs.flatten()
+        distribution = Bernoulli(probs=probs)
 
         return distribution
 
@@ -204,12 +209,18 @@ class BetaVAE(BaseVAE):
         :return: KL divergence minus likehood
         """
         batch_size = x.shape[0]
-        prior = MultivariateNormal(torch.zeros(self.latent_dim * batch_size)
-                                   , torch.eye(self.latent_dim * batch_size))
+        if torch.cuda.is_available():
+            dev = 'cuda'
+
+        else:
+            dev = 'cpu'
+
+        prior = MultivariateNormal(torch.zeros(self.latent_dim * batch_size, device=dev)
+                                   , torch.eye(self.latent_dim * batch_size, device=dev))
         KLD_loss = self.KL_Guassian(posterior_x_z, prior)
         x = x.flatten()
-        likelihood = posterior_z_x.log_prob(x)
-        elbo = (KLD_loss - likelihood)/batch_size
+        likelihood = torch.sum(posterior_z_x.log_prob(x))
+        elbo = (-KLD_loss + likelihood)/batch_size
 
         return -elbo
 
