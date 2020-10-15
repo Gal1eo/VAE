@@ -198,7 +198,7 @@ class BetaVAE(BaseVAE):
 
     def loss_function(self, x: Tensor,
                       posterior_x_z: MultivariateNormal,
-                      posterior_z_x: MultivariateNormal, **kwargs) -> Tensor:
+                      posterior_z_x: Bernoulli, **kwargs) -> Tensor:
 
         """
         :param x: Training data
@@ -219,7 +219,7 @@ class BetaVAE(BaseVAE):
                                    , torch.eye(self.latent_dim * batch_size, device=dev))
         KLD_loss = self.KL_Guassian(posterior_x_z, prior)
         x = x.flatten()
-        likelihood = torch.sum(posterior_z_x.log_prob(x))
+        likelihood = nn.BCELoss(x, posterior_z_x.probs)
         elbo = (-KLD_loss + likelihood)/batch_size
 
         return -elbo
@@ -240,6 +240,7 @@ class BetaVAE(BaseVAE):
         loss = loss_1 - loss_2
 
         return loss
+
 
     '''
     def compute_Guassian(self,
