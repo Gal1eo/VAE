@@ -159,7 +159,7 @@ class BetaVAE(BaseVAE):
         z = z_dist.sample()
         z = z.view(input.shape[0], -1)
         x_dist = self.decode(z)
-        loss = self.loss_function(input,z_dist,x_dist)
+        loss = self.loss_function(input, z_dist, x_dist)
 
         return z_dist, x_dist, loss
 
@@ -259,7 +259,10 @@ class BetaVAE(BaseVAE):
 
         z = z.to(current_device)
 
-        samples = self.decode(z)
+        dist = self.decode(z)
+        samples = dist.sample()
+        samples = samples.view(num_samples, -1)
+
         return samples
 
     def generate(self, x: Tensor, **kwargs) -> Tensor:
@@ -269,4 +272,4 @@ class BetaVAE(BaseVAE):
         :return: (Tensor) [B x C x H x W]
         """
 
-        return self.forward(x)[0]
+        return self.forward(x)[1]

@@ -10,7 +10,7 @@ from torchvision.transforms import transforms
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 epochs = 10
-batch_size = 2
+batch_size = 1
 
 transform = transforms.Compose([
     transforms.ToTensor(),
@@ -67,6 +67,7 @@ def fit(model, dataloader):
     return train_loss
 
 
+
 train_loss = []
 for epoch in range(epochs):
     print(f"Epoch {epoch+1} of {epochs}")
@@ -76,3 +77,14 @@ for epoch in range(epochs):
     # val_loss.append(val_epoch_loss)
     print(f"Train Loss: {train_epoch_loss:.4f}")
     # print(f"Val Loss: {val_epoch_loss:.4f}")
+
+
+"""
+dataloader = train_loader
+for i, data in tqdm(enumerate(dataloader), total=int(len(train_data)/dataloader.batch_size)):
+        data, _ = data
+
+x = data[1].view(-1,1,28,28)
+x = x.to(device)
+model.generate(x)
+"""
