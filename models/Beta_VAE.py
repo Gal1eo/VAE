@@ -136,9 +136,9 @@ class BetaVAE(BaseVAE):
         # var = logvar.exp()
         # var = torch.diag(var)
         # distribution = MultivariateNormal(mu, var)
-        probs = self.final_layer_mu(result)
+        probs = self.final_layer_be(result)
         probs = probs.flatten()
-        distribution = Bernoulli(logits=probs)
+        distribution = Bernoulli(probs=probs)
 
         return distribution
 
