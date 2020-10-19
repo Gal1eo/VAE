@@ -220,7 +220,8 @@ class BetaVAE(BaseVAE):
         KLD_loss = self.KL_Guassian(posterior_x_z, prior)
         x = x.flatten()
         likelihood = self.likelihood(x, posterior_z_x.probs)
-        elbo = (-KLD_loss + likelihood)/batch_size
+        #elbo = (-KLD_loss + likelihood)/batch_size
+        elbo = -KLD_loss + likelihood
 
         return -elbo
 
@@ -237,6 +238,7 @@ class BetaVAE(BaseVAE):
         """
         loss_1 = -0.5 * torch.sum((prior.covariance_matrix.sum(1)) + (posterior.covariance_matrix.sum(1)).log())
         loss_2 = -0.5 * torch.sum(torch.sum(posterior.mean ** 2) + posterior.covariance_matrix)
+
         loss = loss_1 - loss_2
 
         return loss
