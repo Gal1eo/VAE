@@ -237,7 +237,7 @@ class BetaVAE(BaseVAE):
         :return: The KL divergence of D(posterior, prior)
         """
         loss_1 = -0.5 * torch.sum((prior.covariance_matrix.sum(1)) + (posterior.covariance_matrix.sum(1)).log())
-        loss_2 = -0.5 * torch.sum(torch.sum(posterior.mean ** 2) + posterior.covariance_matrix)
+        loss_2 = -0.5 * torch.sum(posterior.mean.pow(2) + posterior.covariance_matrix.sum(1))
 
         loss = loss_1 - loss_2
 
