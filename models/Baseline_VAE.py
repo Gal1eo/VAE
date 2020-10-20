@@ -163,8 +163,11 @@ class BaselineVAE(BaseVAE):
         z = self.reparameterize(mu, logvar)
         output = self.decode(z)
         recon_loss = (((input.flatten() - output.flatten()).abs()).pow(2)).sum()
+        eps = 1e-7
+        likelihood = torch.matmul(input.flatten(), (output.flatten() + eps).log())\
+                     + torch.matmul((1 - input.flatten()), ((1 - output.flatten() + eps).log()))
         kld_loss = 0.5 * (1 + logvar - mu.pow(2) - logvar.exp()).sum()
-        loss = recon_loss - kld_loss
+        loss = -likelihood + kld_loss
 
         return z, output, loss
 
