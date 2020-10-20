@@ -274,8 +274,7 @@ class BaselineVAE(BaseVAE):
     '''
 
     def sample(self,
-               num_samples:int,
-               current_device: int, **kwargs) -> Tensor:
+               num_samples:int, **kwargs) -> Tensor:
         """
         Samples from the latent space and return the corresponding
         image space map.
@@ -286,11 +285,15 @@ class BaselineVAE(BaseVAE):
         z = torch.randn(num_samples,
                         self.latent_dim)
 
+        if torch.cuda.is_available():
+            current_device = 'cuda'
+        else:
+            current_device = 'cpu'
+
         z = z.to(current_device)
 
-        dist = self.decode(z)
-        samples = dist.probs
-        samples = samples.view(num_samples, -1)
+        samples = self.decode(z)
+
 
         return samples
 
