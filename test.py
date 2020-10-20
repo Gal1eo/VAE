@@ -1,4 +1,5 @@
 from models.Beta_VAE import BetaVAE
+from models.Baseline_VAE import BaselineVAE
 
 from tqdm import tqdm
 from torch import optim
@@ -48,7 +49,8 @@ val_loader = DataLoader(
 
 lr = 0.0001
 
-model = BetaVAE().to(device)
+#model = BetaVAE().to(device)
+model = BaselineVAE().to(device)
 optimizer = optim.Adam(model.parameters(), lr=lr)
 #criterion = BetaVAE.loss_function()
 
@@ -61,7 +63,7 @@ def fit(model, dataloader):
         data = data.to(device)
         data = data.view(batch_size, 1, 28, 28)
         optimizer.zero_grad()
-        x_dist, z_dist, loss = model(data)
+        z, output, loss = model(data)
         # loss = BetaVAE.loss_function(x=data, posterior_x_z=x_dist, posterior_z_x=z_dist)
         running_loss += loss.item()
         print(loss)

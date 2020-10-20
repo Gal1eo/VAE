@@ -1,3 +1,5 @@
+from abc import ABC
+
 import torch
 from models.base import BaseVAE
 from torch import nn
@@ -8,7 +10,7 @@ from torch.distributions.bernoulli import Bernoulli
 from torch.distributions import Independent
 
 
-class BetaVAE(BaseVAE):
+class BaselineVAE(BaseVAE):
 
     num_iter = 0 # Global static variable to keep track of iterations
 
@@ -24,7 +26,7 @@ class BetaVAE(BaseVAE):
                  h_in: int = 28,
                  w_in: int = 28,
                  **kwargs) -> None:
-        super(BetaVAE, self).__init__()
+        super(BaselineVAE, self).__init__()
 
         self.latent_dim = latent_dim
         self.beta = beta
@@ -98,7 +100,7 @@ class BetaVAE(BaseVAE):
                                             nn.Sigmoid())
         self.final_layer_var = nn.Linear(hidden_dims[-1]*16*16, 784)
 
-    def encode(self, input: Tensor) -> MultivariateNormal:
+    def encode(self, input: Tensor) -> Tensor:
         """
         Encodes the input by passing through the encoder network
         and returns the latent codes.
@@ -112,12 +114,8 @@ class BetaVAE(BaseVAE):
         # of the latent Gaussian distribution
         mu = self.fc_mu(result)
         logvar = self.fc_var(result)
-        mu = mu.flatten()
-        var = logvar.flatten()
-        var = var.exp()
-        var = torch.diag(var)
-        distribution = MultivariateNormal(mu, var)
-        return distribution
+
+        return mu, logvar
 
     def decode(self, z: Tensor) -> Tensor:
         """
@@ -129,6 +127,7 @@ class BetaVAE(BaseVAE):
         result = result.view(-1, 512, 1, 1)
         result = self.decoder(result)
         result = torch.flatten(result, start_dim=1)
+        result = self.final_layer_be(result)
         # result = self.final_layer(result)
         # mu = self.final_layer_mu(result)
         # mu = mu.flatten()
@@ -137,14 +136,13 @@ class BetaVAE(BaseVAE):
         # var = logvar.exp()
         # var = torch.diag(var)
         # distribution = MultivariateNormal(mu, var)
-        probs = self.final_layer_be(result)
-        probs = probs.flatten()
-        distribution = Bernoulli(probs=probs)
+        #probs = self.final_layer_be(result)
+        #probs = probs.flatten()
+        #distribution = Bernoulli(probs=probs)
 
-        return distribution
+        return result
 
-    @staticmethod
-    def reparameterize(mu: Tensor, logvar: Tensor) -> Tensor:
+    def reparameterize(self, mu: Tensor, logvar: Tensor) -> Tensor:
         """
         Will a single z be enough ti compute the expectation
         for the loss??
@@ -161,13 +159,14 @@ class BetaVAE(BaseVAE):
         assert self.h_in == input.shape[2]
         assert self.w_in == input.shape[3]
 
-        z_dist = self.encode(input)
-        z = z_dist.sample()
-        z = z.view(input.shape[0], -1)
-        x_dist = self.decode(z)
-        loss = self.loss_function(input, z_dist, x_dist)
+        mu, logvar = self.encode(input)
+        z = self.reparameterize(mu, logvar)
+        output = self.decode(z)
+        recon_loss = (((input.flatten() - output.flatten()).abs()).pow(2)).sum()
+        kld_loss = 0.5 * (1 + logvar - mu.pow(2) - logvar.exp()).sum()
+        loss = recon_loss - kld_loss
 
-        return z_dist, x_dist, loss
+        return z, output, loss
 
     '''
     def loss_function(self,
