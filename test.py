@@ -49,8 +49,8 @@ val_loader = DataLoader(
 
 lr = 0.0001
 
-model = BetaVAE().to(device)
-#model = BaselineVAE().to(device)
+#model = BetaVAE().to(device)
+model = BaselineVAE().to(device)
 optimizer = optim.Adam(model.parameters(), lr=lr)
 #criterion = BetaVAE.loss_function()
 
