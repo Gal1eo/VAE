@@ -219,12 +219,12 @@ class BetaVAE(BaseVAE):
         prior = MultivariateNormal(torch.zeros(self.latent_dim * batch_size, device=dev)
                                    , torch.eye(self.latent_dim * batch_size, device=dev))
         KLD_loss = self.KL_Guassian(posterior_x_z, prior)
-        x = x.flatten()
-        likelihood = self.likelihood(x, posterior_z_x.probs)
+        #likelihood = self.likelihood(x, posterior_z_x.probs)
         #elbo = (-KLD_loss + likelihood)/batch_size
-        elbo = -KLD_loss + likelihood
+        #elbo = -KLD_loss + likelihood
+        recon_loss = (((x.flatten() - posterior_z_x.probs.flatten()).abs()).pow(2)).sum()
 
-        return -elbo
+        return recon_loss + KLD_loss
 
     def KL_Guassian(self,
                     posterior: MultivariateNormal,
